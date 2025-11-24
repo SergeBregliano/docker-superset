@@ -1,0 +1,103 @@
+services:
+
+  superset:
+    build:
+      context: .
+      dockerfile: docker/superset/Dockerfile
+      args:
+        SUPERSET_VERSION: ${SUPERSET_VERSION:-5.0.0}
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    container_name: ${MAIN_CONTAINER_NAME:-superset}
+    environment:
+      # Database configuration
+      DATABASE_DIALECT: ${DATABASE_DIALECT:-postgresql}
+      DATABASE_DB: ${POSTGRES_DB:-superset}
+      DATABASE_HOST: database
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_USER: ${POSTGRES_USER:-superset}
+      DATABASE_PORT: ${POSTGRES_PORT:-5432}
+      # Redis configuration
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Superset configuration
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_BABEL_DEFAULT_LOCALE: ${SUPERSET_BABEL_DEFAULT_LOCALE:-fr}
+      SUPERSET_CONFIG_PATH: /app/superset_config.py
+      # Proxy configuration for https-portal
+      VIRTUAL_HOST: ${VIRTUAL_HOST:-localhost}
+      VIRTUAL_PORT: 8088
+      # Admin user (for initial setup)
+      SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME:-admin}
+      SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL:-admin@localhost}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./docker/superset/superset_config.py:/app/superset_config.py:ro
+    networks:
+      - superset
+      - gateway
+
+  database:
+    image: postgres:${POSTGRES_VERSION:-16}-alpine
+    restart: unless-stopped
+    container_name: ${MAIN_CONTAINER_NAME:-superset}_database
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-superset}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-superset}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=fr_FR.UTF-8"
+      # Base de données pour les données utilisateurs (CSV uploadés, etc.)
+      POSTGRES_USERDATA_DB: ${POSTGRES_USERDATA_DB:-user_data}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${POSTGRES_DB:-superset} -U ${POSTGRES_USER:-superset}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - ${DATA_PATH:-./appData}/database/postgres:/var/lib/postgresql/data:rw
+      - ./docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh:ro
+    networks:
+      - superset
+
+  redis:
+    image: redis:${REDIS_VERSION:-7-alpine}
+    restart: unless-stopped
+    container_name: ${MAIN_CONTAINER_NAME:-superset}_redis
+    command: >
+      sh -c "if [ -n \"$$REDIS_PASSWORD\" ]; then
+        redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\";
+      else
+        redis-server --appendonly yes;
+      fi"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - superset
+
+networks:
+
+  gateway:
+    name: ${FRONTEND_NETWORK}
+    external: true
+
+  superset:
+    name: ${BACKEND_NETWORK}
