@@ -826,7 +826,7 @@
       "Chart type requires a dataset": [
         "Le type de graphique nécessite un ensemble de données"
       ],
-      "Charts": ["Graphiques :"],
+      "Charts": ["Graphiques"],
       "Charts could not be deleted.": [
         "Les graphiques n'ont pas pu être supprimés."
       ],
