@@ -28,6 +28,9 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       # Superset configuration
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_APP_NAME: ${SUPERSET_APP_NAME:-Superset}
+      SUPERSET_APP_ICON: ${SUPERSET_APP_ICON:-/static/assets/images/superset-logo-horiz.png}
+      SUPERSET_FAVICONS: ${SUPERSET_FAVICONS:-}
       SUPERSET_BABEL_DEFAULT_LOCALE: ${SUPERSET_BABEL_DEFAULT_LOCALE:-fr}
       SUPERSET_CONFIG_PATH: /app/superset_config.py
       # Proxy configuration for https-portal
@@ -45,6 +48,7 @@ services:
       start_period: 60s
     volumes:
       - ./docker/superset/superset_config.py:/app/superset_config.py:ro
+      - ${DATA_PATH:-./appData}/superset/assets:/app/superset/static/assets/custom:ro
     networks:
       - superset
       - gateway

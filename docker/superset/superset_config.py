@@ -50,6 +50,25 @@ class CeleryConfig:
 
 CELERY_CONFIG = CeleryConfig
 
+# Application name
+APP_NAME = os.environ.get("SUPERSET_APP_NAME", "Superset")
+
+# Logo customization
+# APP_ICON: Chemin vers le logo principal
+# Format: chemin relatif depuis /app/superset/static/assets/images/
+# Exemple: "/static/assets/images/custom-logo.png" ou "/static/assets/custom/logo.png"
+APP_ICON = os.environ.get("SUPERSET_APP_ICON", "/static/assets/images/superset-logo-horiz.png")
+
+# FAVICONS: Liste des favicons
+# Format JSON: [{"href": "/static/assets/custom/favicon.png"}]
+# Ou format simple: /static/assets/custom/favicon.png
+import json
+FAVICONS_ENV = os.environ.get("SUPERSET_FAVICONS", "")
+try:
+    FAVICONS = json.loads(FAVICONS_ENV) if FAVICONS_ENV else [{"href": "/static/assets/images/favicon.png"}]
+except (json.JSONDecodeError, ValueError):
+    FAVICONS = [{"href": FAVICONS_ENV}] if FAVICONS_ENV else [{"href": "/static/assets/images/favicon.png"}]
+
 # Security
 SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "")
 ENABLE_PROXY_FIX = True
@@ -78,10 +97,10 @@ TALISMAN_CONFIG = {
 # Localization
 BABEL_DEFAULT_LOCALE = os.environ.get("SUPERSET_BABEL_DEFAULT_LOCALE", "fr")
 BABEL_DEFAULT_FOLDER = "superset/translations"
-LANGUAGES = {
-    "en": {"flag": "us", "name": "English"},
-    "fr": {"flag": "fr", "name": "Français"},
-}
+# LANGUAGES = {
+#     "en": {"flag": "us", "name": "English"},
+#     "fr": {"flag": "fr", "name": "Français"},
+# }
 
 # Feature flags for translations
 FEATURE_FLAGS = {
