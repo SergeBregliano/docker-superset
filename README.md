@@ -79,7 +79,31 @@ Superset est principalement développé en anglais et les traductions dépendent
 
 Pour contribuer aux traductions françaises, consultez le [projet Superset sur GitHub](https://github.com/apache/superset).
 
-## 🔧 Configuration
+### Traductions personnalisées
+
+Vous pouvez utiliser vos propres traductions en montant un volume dans le conteneur. Placez vos fichiers de traduction compilés (`.mo`) dans le dossier suivant :
+
+```
+${DATA_PATH}/superset/translations/fr/LC_MESSAGES/messages.mo
+```
+
+Le volume est automatiquement monté dans le conteneur à `/app/superset/translations/fr/`, remplaçant les traductions françaises par défaut.
+
+**Structure attendue :**
+```
+appData/superset/translations/
+└── fr/
+    └── LC_MESSAGES/
+        └── messages.mo
+```
+
+**Note :** Pour compiler vos fichiers `.po` en `.mo`, vous pouvez utiliser `pybabel` dans le conteneur :
+
+```bash
+docker exec superset pybabel compile -d superset/translations
+```
+
+## Configuration
 
 ### Variables d'environnement principales
 

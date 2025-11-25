@@ -49,6 +49,7 @@ services:
     volumes:
       - ./docker/superset/superset_config.py:/app/superset_config.py:ro
       - ${DATA_PATH:-./appData}/superset/assets:/app/superset/static/assets/custom:ro
+      - ${DATA_PATH:-./appData}/superset/translations/fr:/app/superset/translations/fr:ro
     networks:
       - superset
       - gateway

@@ -96,7 +96,7 @@ TALISMAN_CONFIG = {
 
 # Localization
 BABEL_DEFAULT_LOCALE = os.environ.get("SUPERSET_BABEL_DEFAULT_LOCALE", "fr")
-BABEL_DEFAULT_FOLDER = "superset/translations"
+
 # LANGUAGES = {
 #     "en": {"flag": "us", "name": "English"},
 #     "fr": {"flag": "fr", "name": "Français"},

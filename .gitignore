@@ -1,6 +1,14 @@
-appData/
+#appData
+appData/database/
+appData/superset/assets/
+
+# Sauvegardes
 backups/
+
+# Fichiers de configuration sensibles
 .env
-.idea/
 docker-compose.override.yml
+
+# Fichiers système
 *.DS_Store
+.idea/
