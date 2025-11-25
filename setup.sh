@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Script d'initialisation de Superset
 # Ce script doit être exécuté après le premier démarrage des conteneurs
@@ -9,19 +9,19 @@ set -e
 if [ -f .env ]; then
     # Lire le fichier .env ligne par ligne en gérant les accents et les espaces
     while IFS= read -r line || [ -n "$line" ]; do
+        # Ignorer les lignes vides et les commentaires (compatible POSIX)
+        # Supprimer les espaces en début de ligne
+        line_trimmed=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         # Ignorer les lignes vides et les commentaires
-        [[ "$line" =~ ^[[:space:]]*# ]] && continue
-        [[ -z "${line// }" ]] && continue
+        [ -z "$line_trimmed" ] && continue
+        [ "$(echo "$line_trimmed" | cut -c1)" = "#" ] && continue
         
-        # Parser la ligne KEY=VALUE
-        if [[ "$line" =~ ^[[:space:]]*([^=]+)=(.*)$ ]]; then
-            key="${BASH_REMATCH[1]}"
-            value="${BASH_REMATCH[2]}"
-            # Supprimer les espaces en début/fin (sans utiliser xargs pour éviter les problèmes d'accents)
-            key="${key#"${key%%[![:space:]]*}"}"
-            key="${key%"${key##*[![:space:]]}"}"
-            value="${value#"${value%%[![:space:]]*}"}"
-            value="${value%"${value##*[![:space:]]}"}"
+        # Parser la ligne KEY=VALUE (compatible POSIX)
+        if echo "$line" | grep -qE '^[[:space:]]*[^=]+='; then
+            # Extraire la clé (avant le =)
+            key=$(echo "$line" | sed 's/^[[:space:]]*//' | cut -d'=' -f1 | sed 's/[[:space:]]*$//')
+            # Extraire la valeur (après le =)
+            value=$(echo "$line" | sed 's/^[[:space:]]*[^=]*=[[:space:]]*//' | sed 's/[[:space:]]*$//')
             # Exporter la variable
             export "$key=$value"
         fi
