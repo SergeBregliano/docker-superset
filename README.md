@@ -73,11 +73,7 @@ Identifiants par défaut (modifiables dans `.env`) :
 
 ## Traductions
 
-Superset est configuré pour utiliser le français par défaut (`BABEL_DEFAULT_LOCALE=fr`), mais **les traductions françaises peuvent être incomplètes**. 
-
-Superset est principalement développé en anglais et les traductions dépendent des contributions de la communauté. Si vous constatez que certaines parties de l'interface restent en anglais, c'est normal et cela signifie que ces traductions n'ont pas encore été fournies par la communauté.
-
-Pour contribuer aux traductions françaises, consultez le [projet Superset sur GitHub](https://github.com/apache/superset).
+Superset est configuré pour utiliser le français par défaut (`BABEL_DEFAULT_LOCALE=fr`).
 
 ### Traductions personnalisées
 
@@ -94,14 +90,12 @@ Le volume est automatiquement monté dans le conteneur à `/app/superset/transla
 appData/superset/translations/
 └── fr/
     └── LC_MESSAGES/
+        └── messages.json
         └── messages.mo
+				└── messages.po
 ```
 
-**Note :** Pour compiler vos fichiers `.po` en `.mo`, vous pouvez utiliser `pybabel` dans le conteneur :
-
-```bash
-docker exec superset pybabel compile -d superset/translations
-```
+**Note :** Pour modifier les fichiers de traduction, ne pas hésiter à utiliser [Poedit](https://poedit.net/).
 
 ## Configuration
 
@@ -134,15 +128,13 @@ Les données sont stockées dans `./appData` :
 
 ### Volumes de base de données
 
-- **`appData/database/postgres`** : **CRITIQUE** ⚠️
-  - **Contient TOUTES les métadonnées Superset** :
-    - Dashboards (tableaux de bord)
-    - Charts (graphiques)
-    - Datasources (sources de données)
-    - Users (utilisateurs)
-    - Roles (rôles et permissions)
-    - Logs d'activité
-  - **Sauvegarde essentielle** : C'est le volume à sauvegarder !
+- **`appData/database/postgres`**
+  - Dashboards (tableaux de bord)
+  - Charts (graphiques)
+  - Datasources (sources de données)
+  - Users (utilisateurs)
+  - Roles (rôles et permissions)
+  - Logs d'activité
 
 ### Séparation des bases de données PostgreSQL
 
@@ -152,8 +144,6 @@ Les métadonnées Superset et les données utilisateurs sont séparées dans deu
   - Dashboards, charts, utilisateurs, rôles, permissions, etc.
   - Tables créées automatiquement par Superset
   - **Ne pas modifier manuellement !**
-  - **Sauvegarde essentielle** ⚠️
-
 - **Base `user_data`** (données utilisateurs) :
   - CSV uploadés, tables créées manuellement
   - **Utilisez cette base pour vos données**
@@ -203,29 +193,67 @@ Superset fournit des exemples de données (jeux de données et dashboards) pour 
 
 **Note :** Le script `load-examples.sh` vérifie automatiquement que Superset est prêt et que la base `user_data` existe avant de charger les exemples.
 
-### Stratégie de sauvegarde recommandée
+## Sauvegarde et restauration
 
-Sauvegarder `appData/database/postgres` (dump PostgreSQL)
+### Vue d'ensemble
 
-#### Script de sauvegarde
+Le système de sauvegarde couvre les deux bases de données :
 
-Un script `backup.sh` est fourni pour faciliter les sauvegardes :
+- Base `superset` : métadonnées (dashboards, charts, utilisateurs, rôles, etc.)
+- Base `user_data` : données utilisateurs (CSV uploadés, tables créées manuellement)
 
+### Méthodes de sauvegarde
+
+#### 1. Sauvegarde automatique (recommandée)
+
+Un service Docker `backup` est configuré pour effectuer des sauvegardes automatiques quotidiennes.
+
+**Configuration :**
+- **Fréquence** : Quotidienne (`@daily` à minuit)
+- **Rétention** : 7 dernières sauvegardes conservées automatiquement
+- **Emplacement** : `appData/backups/` (monté dans le conteneur)
+
+**Vérifier les sauvegardes automatiques :**
 ```bash
-# Exécuter la sauvegarde
-./backup.sh
+# Lister les sauvegardes automatiques
+ls -lh appData/backups/
 
-# Les sauvegardes sont créées dans ./backups/
-# - postgres_superset_YYYYMMDD_HHMMSS.sql.gz (dump PostgreSQL)
-# - superset_files_YYYYMMDD_HHMMSS.tar.gz (fichiers uploadés)
+# Vérifier les logs du service backup
+docker-compose logs backup
 ```
 
-**Restauration PostgreSQL** :
+**Personnaliser la fréquence :**
+Modifiez la variable `SCHEDULE` dans `docker-compose.yaml` :
+- `@daily` : Tous les jours à minuit
+- `@weekly` : Une fois par semaine
+- `0 2 * * *` : Tous les jours à 2h du matin (format cron)
+- `0 */6 * * *` : Toutes les 6 heures
+
+**Personnaliser la rétention :**
+Modifiez `BACKUP_NUM_KEEP` dans `docker-compose.yaml` (nombre de sauvegardes à conserver).
+
+### Restauration
+
+#### Restaurer les bases de données PostgreSQL
+
 ```bash
-# Restaurer depuis une sauvegarde
-gunzip < backups/postgres_superset_YYYYMMDD_HHMMSS.sql.gz | \
+# Arrêter Superset
+docker-compose stop superset
+
+# Restaurer la base superset
+gunzip < appData/backups/postgres_superset_YYYYMMDD_HHMMSS.sql.gz | \
   docker exec -i ${MAIN_CONTAINER_NAME:-superset}_database \
   psql -U ${POSTGRES_USER:-superset} ${POSTGRES_DB:-superset}
+
+# Restaurer la base user_data (si la sauvegarde existe)
+if [ -f appData/backups/postgres_user_data_YYYYMMDD_HHMMSS.sql.gz ]; then
+  gunzip < appData/backups/postgres_user_data_YYYYMMDD_HHMMSS.sql.gz | \
+    docker exec -i ${MAIN_CONTAINER_NAME:-superset}_database \
+    psql -U ${POSTGRES_USER:-superset} ${POSTGRES_USERDATA_DB:-user_data}
+fi
+
+# Redémarrer Superset
+docker-compose start superset
 ```
 
 ## Sécurité
