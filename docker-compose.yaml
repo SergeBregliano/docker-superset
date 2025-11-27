@@ -98,6 +98,31 @@ services:
     networks:
       - superset
 
+  backup:
+    image: prodrigestivill/postgres-backup-local
+    restart: unless-stopped
+    container_name: ${MAIN_CONTAINER_NAME:-superset}_backup
+    environment:
+      POSTGRES_HOST: database
+      POSTGRES_DB: ${POSTGRES_DB:-superset}
+      POSTGRES_USER: ${POSTGRES_USER:-superset}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "@daily"
+      BACKUP_NUM_KEEP: 7
+      BACKUP_DIR: /backups
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /backups && test -w /backups && ps aux | grep -E '[c]ron' | grep -v grep || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - ${DATA_PATH:-./appData}/backups:/backups
+    depends_on:
+      - database
+    networks:
+      - superset
+
 networks:
 
   gateway:
