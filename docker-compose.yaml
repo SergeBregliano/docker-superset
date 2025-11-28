@@ -104,7 +104,7 @@ services:
     container_name: ${MAIN_CONTAINER_NAME:-superset}_backup
     environment:
       POSTGRES_HOST: database
-      POSTGRES_DB: ${POSTGRES_DB:-superset}
+      POSTGRES_DBS: ${POSTGRES_DB:-superset},${POSTGRES_USERDATA_DB:-user_data}
       POSTGRES_USER: ${POSTGRES_USER:-superset}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       SCHEDULE: "@daily"
