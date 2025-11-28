@@ -5,7 +5,17 @@
 # Compatible Debian
 # Usage: ./backup-restore.sh
 
-set -euo pipefail
+# Vérifier que le script est exécuté avec bash
+if [ -z "${BASH_VERSION:-}" ]; then
+    echo "Erreur: Ce script doit être exécuté avec bash, pas avec sh"
+    echo "Utilisez: bash ./backup-restore.sh"
+    echo "Ou: ./backup-restore.sh (si le fichier est exécutable)"
+    exit 1
+fi
+
+set -eu
+# pipefail n'est supporté que par bash, pas par sh/dash
+set -o pipefail 2>/dev/null || true
 
 # Couleurs pour l'affichage
 RED='\033[0;31m'
