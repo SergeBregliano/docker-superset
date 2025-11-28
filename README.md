@@ -232,6 +232,33 @@ Modifiez la variable `SCHEDULE` dans `docker-compose.yaml` :
 **Personnaliser la rétention :**
 Modifiez `BACKUP_NUM_KEEP` dans `docker-compose.yaml` (nombre de sauvegardes à conserver).
 
+#### 2. Sauvegarde et restauration manuelles
+
+Un script `backup-restore.sh` permet de gérer facilement les sauvegardes et restaurations.
+
+**Utilisation :**
+
+```bash
+# Exécuter le script
+bash ./backup-restore.sh
+# Ou simplement (si le fichier est exécutable)
+./backup-restore.sh
+```
+
+Le script propose un menu avec les options suivantes :
+
+1. **Effectuer une sauvegarde** : Lance une sauvegarde manuelle des deux bases (`superset` et `user_data`)
+2. **Restaurer une sauvegarde** : Liste toutes les sauvegardes disponibles (groupées par date) et permet de restaurer une ou les deux bases
+3. **Quitter**
+
+**Fonctionnalités :**
+- Détection automatique des sauvegardes "latest" et des sauvegardes groupées par date
+- Restauration automatique des deux bases si les sauvegardes correspondent
+- Vérification et correction automatique des permissions du répertoire de backup
+- Arrêt/redémarrage automatique de Superset lors des restaurations
+
+**Note :** Le script utilise le conteneur `prodrigestivill/postgres-backup-local` pour effectuer les sauvegardes, garantissant la cohérence avec les sauvegardes automatiques.
+
 ### Restauration
 
 #### Restaurer les bases de données PostgreSQL
