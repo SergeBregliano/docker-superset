@@ -312,6 +312,24 @@ perform_restore() {
     # Nettoyer les fichiers temporaires
     rm -f "${temp_all_backups}" "${temp_group_file}.tmp" 2>/dev/null || true
     
+    # Chercher les sauvegardes "latest" (liens symboliques ou fichiers)
+    local latest_backups=$(find "${BACKUP_DIR}" -type f -o -type l \( -name "*latest*.sql.gz" -o -name "*latest*.sql" \) 2>/dev/null | sort)
+    local superset_latest=""
+    local user_data_latest=""
+    
+    for latest_file in ${latest_backups}; do
+        local latest_filename=$(basename "${latest_file}")
+        # Résoudre le lien symbolique si c'est un lien
+        local real_file=$(readlink -f "${latest_file}" 2>/dev/null || echo "${latest_file}")
+        if [ -f "${real_file}" ] || [ -L "${latest_file}" ]; then
+            if [[ "${latest_filename}" == *"${POSTGRES_DB}"* ]]; then
+                superset_latest="${real_file}"
+            elif [[ "${latest_filename}" == *"${POSTGRES_USERDATA_DB}"* ]]; then
+                user_data_latest="${real_file}"
+            fi
+        fi
+    done
+    
     # Afficher les sauvegardes groupées
     echo "=== Sauvegardes disponibles ==="
     echo ""
@@ -319,6 +337,37 @@ perform_restore() {
     local index=1
     local temp_selected_file=$(mktemp)
     local temp_sorted_timestamps=$(mktemp)
+    
+    # Afficher d'abord les sauvegardes "latest" si elles existent
+    if [ -n "${superset_latest}" ] || [ -n "${user_data_latest}" ]; then
+        local latest_date=""
+        local latest_superset_size=""
+        local latest_user_data_size=""
+        
+        if [ -n "${superset_latest}" ]; then
+            latest_date=$(stat -c %y "${superset_latest}" 2>/dev/null || stat -f "%Sm" "${superset_latest}" 2>/dev/null || echo "Date inconnue")
+            latest_superset_size=$(du -h "${superset_latest}" | cut -f1)
+        fi
+        if [ -n "${user_data_latest}" ]; then
+            if [ -z "${latest_date}" ]; then
+                latest_date=$(stat -c %y "${user_data_latest}" 2>/dev/null || stat -f "%Sm" "${user_data_latest}" 2>/dev/null || echo "Date inconnue")
+            fi
+            latest_user_data_size=$(du -h "${user_data_latest}" | cut -f1)
+        fi
+        
+        echo "[$index] Sauvegarde LATEST (${latest_date})"
+        if [ -n "${superset_latest}" ]; then
+            echo "     - ${POSTGRES_DB}: $(basename "${superset_latest}") (${latest_superset_size})"
+        fi
+        if [ -n "${user_data_latest}" ]; then
+            echo "     - ${POSTGRES_USERDATA_DB}: $(basename "${user_data_latest}") (${latest_user_data_size})"
+        fi
+        
+        # Stocker les fichiers latest
+        echo "${superset_latest}|${user_data_latest}|latest" >> "${temp_selected_file}"
+        index=$((index + 1))
+        echo ""
+    fi
     
     # Trier les timestamps (plus récents en premier) dans un fichier
     sort -r "${temp_timestamps_file}" > "${temp_sorted_timestamps}"
@@ -336,6 +385,10 @@ perform_restore() {
         # Séparer les fichiers par base
         for file in ${files}; do
             local filename=$(basename "${file}")
+            # Ignorer les fichiers latest déjà affichés
+            if [[ "${filename}" == *"latest"* ]]; then
+                continue
+            fi
             if [[ "${filename}" == *"${POSTGRES_DB}"* ]]; then
                 superset_file="${file}"
                 superset_size=$(du -h "${file}" | cut -f1)
@@ -349,18 +402,20 @@ perform_restore() {
             fi
         done
         
-        # Afficher la sauvegarde groupée
-        echo "[$index] Sauvegarde du ${date_str}"
-        if [ -n "${superset_file}" ]; then
-            echo "     - ${POSTGRES_DB}: $(basename "${superset_file}") (${superset_size})"
+        # Afficher la sauvegarde groupée seulement si elle contient des fichiers (non latest)
+        if [ -n "${superset_file}" ] || [ -n "${user_data_file}" ]; then
+            echo "[$index] Sauvegarde du ${date_str}"
+            if [ -n "${superset_file}" ]; then
+                echo "     - ${POSTGRES_DB}: $(basename "${superset_file}") (${superset_size})"
+            fi
+            if [ -n "${user_data_file}" ]; then
+                echo "     - ${POSTGRES_USERDATA_DB}: $(basename "${user_data_file}") (${user_data_size})"
+            fi
+            
+            # Stocker les fichiers pour ce groupe
+            echo "${superset_file}|${user_data_file}|${timestamp}" >> "${temp_selected_file}"
+            index=$((index + 1))
         fi
-        if [ -n "${user_data_file}" ]; then
-            echo "     - ${POSTGRES_USERDATA_DB}: $(basename "${user_data_file}") (${user_data_size})"
-        fi
-        
-        # Stocker les fichiers pour ce groupe
-        echo "${superset_file}|${user_data_file}|${timestamp}" >> "${temp_selected_file}"
-        index=$((index + 1))
     done < "${temp_sorted_timestamps}"
     
     local total_backups=$((index - 1))
