@@ -5,12 +5,17 @@
 # Compatible Debian
 # Usage: ./backup-restore.sh
 
-# Vérifier que le script est exécuté avec bash
+# Vérifier que le script est exécuté avec bash et se relancer si nécessaire
 if [ -z "${BASH_VERSION:-}" ]; then
-    echo "Erreur: Ce script doit être exécuté avec bash, pas avec sh"
-    echo "Utilisez: bash ./backup-restore.sh"
-    echo "Ou: ./backup-restore.sh (si le fichier est exécutable)"
-    exit 1
+    # Essayer de trouver bash dans le PATH
+    if command -v bash >/dev/null 2>&1; then
+        exec bash "$0" "$@"
+    else
+        echo "Erreur: Ce script doit être exécuté avec bash, pas avec sh"
+        echo "bash n'a pas été trouvé dans le PATH"
+        echo "Veuillez installer bash ou utiliser: /bin/bash ./backup-restore.sh"
+        exit 1
+    fi
 fi
 
 set -eu
@@ -113,9 +118,56 @@ check_backup_dir() {
     fi
 }
 
+# Fonction pour vérifier et corriger les permissions du répertoire de backup
+fix_backup_permissions() {
+    info "Vérification des permissions du répertoire de backup..."
+    
+    # Vérifier que le répertoire existe
+    if [ ! -d "${BACKUP_DIR}" ]; then
+        warning "Le répertoire de sauvegarde '${BACKUP_DIR}' n'existe pas, création..."
+        mkdir -p "${BACKUP_DIR}"
+    fi
+    
+    # Corriger les permissions du répertoire principal
+    chmod 777 "${BACKUP_DIR}" 2>/dev/null || {
+        warning "Impossible de modifier les permissions de ${BACKUP_DIR}"
+        warning "Vous devrez peut-être exécuter: sudo chmod -R 777 ${BACKUP_DIR}"
+    }
+    
+    # Créer les sous-répertoires s'ils n'existent pas
+    mkdir -p "${BACKUP_DIR}/last" "${BACKUP_DIR}/daily" "${BACKUP_DIR}/weekly" "${BACKUP_DIR}/monthly" 2>/dev/null || true
+    
+    # Corriger les permissions de tous les sous-répertoires
+    find "${BACKUP_DIR}" -type d -exec chmod 777 {} \; 2>/dev/null || true
+    
+    # Vérifier que le conteneur peut écrire
+    if ! docker exec "${BACKUP_CONTAINER}" test -w /backups 2>/dev/null; then
+        warning "Le conteneur ne peut toujours pas écrire dans /backups"
+        warning "Tentative de redémarrage du conteneur..."
+        docker-compose restart backup 2>/dev/null || docker compose restart backup 2>/dev/null || true
+        sleep 2
+    fi
+    
+    # Vérification finale
+    if docker exec "${BACKUP_CONTAINER}" test -w /backups 2>/dev/null; then
+        success "Permissions du répertoire de backup correctes"
+    else
+        error "Le conteneur ne peut toujours pas écrire dans /backups"
+        error "Vérifiez les permissions manuellement: ls -la ${BACKUP_DIR}"
+        return 1
+    fi
+}
+
 # Fonction pour effectuer une sauvegarde manuelle
 perform_backup() {
     info "Démarrage de la sauvegarde manuelle..."
+    
+    # Vérifier et corriger les permissions avant de commencer
+    if ! fix_backup_permissions; then
+        error "Impossible de corriger les permissions. Veuillez les vérifier manuellement."
+        exit 1
+    fi
+    
     info "Utilisation du script de backup intégré du conteneur..."
     
     # Exécuter le script de backup du conteneur
@@ -198,157 +250,185 @@ restore_database() {
     success "Restauration de '${db_name}' terminée!"
 }
 
+# Fonction pour extraire le timestamp d'un nom de fichier
+extract_timestamp() {
+    local filename=$1
+    if [[ "${filename}" =~ -([0-9]{8}-[0-9]{6})\. ]]; then
+        # Format avec heure: 20251128-183700
+        echo "${BASH_REMATCH[1]}"
+    elif [[ "${filename}" =~ -([0-9]{8})\. ]]; then
+        # Format sans heure: 20251128
+        echo "${BASH_REMATCH[1]}"
+    elif [[ "${filename}" =~ -([0-9]{6})\. ]]; then
+        # Format semaine: 202548
+        echo "${BASH_REMATCH[1]}"
+    fi
+}
+
 # Fonction pour effectuer une restauration
 perform_restore() {
     info "Démarrage de la restauration..."
     
-    # Lister les sauvegardes disponibles
+    # Lister toutes les sauvegardes disponibles
     info "Recherche des sauvegardes disponibles..."
     echo ""
     
-    local superset_backups
-    superset_backups=$(list_backups "${POSTGRES_DB}" 2>/dev/null || true)
+    local all_backups
+    all_backups=$(find "${BACKUP_DIR}" -type f \( -name "*.sql.gz" -o -name "*.sql" \) 2>/dev/null | sort -r)
     
-    local user_data_backups
-    user_data_backups=$(list_backups "${POSTGRES_USERDATA_DB}" 2>/dev/null || true)
-    
-    if [ -z "${superset_backups}" ] && [ -z "${user_data_backups}" ]; then
+    if [ -z "${all_backups}" ]; then
         error "Aucune sauvegarde trouvée dans ${BACKUP_DIR}"
         exit 1
     fi
     
-    # Afficher les sauvegardes disponibles
+    # Grouper les sauvegardes par timestamp (sans tableaux associatifs pour compatibilité sh)
+    local temp_group_file=$(mktemp)
+    local temp_timestamps_file=$(mktemp)
+    local temp_all_backups=$(mktemp)
+    
+    # Écrire toutes les sauvegardes dans un fichier temporaire
+    echo "${all_backups}" > "${temp_all_backups}"
+    
+    while IFS= read -r file; do
+        if [ -f "${file}" ]; then
+            local filename=$(basename "${file}")
+            local timestamp=$(extract_timestamp "${filename}")
+            
+            if [ -n "${timestamp}" ]; then
+                # Vérifier si ce timestamp existe déjà
+                if ! grep -q "^${timestamp}:" "${temp_group_file}" 2>/dev/null; then
+                    echo "${timestamp}:${file}" >> "${temp_group_file}"
+                    echo "${timestamp}" >> "${temp_timestamps_file}"
+                else
+                    # Ajouter le fichier au groupe existant
+                    local existing=$(grep "^${timestamp}:" "${temp_group_file}" | cut -d: -f2-)
+                    local new_line="${timestamp}:${existing} ${file}"
+                    sed "s|^${timestamp}:.*|${new_line}|" "${temp_group_file}" > "${temp_group_file}.tmp" && mv "${temp_group_file}.tmp" "${temp_group_file}"
+                fi
+            fi
+        fi
+    done < "${temp_all_backups}"
+    
+    # Nettoyer les fichiers temporaires
+    rm -f "${temp_all_backups}" "${temp_group_file}.tmp" 2>/dev/null || true
+    
+    # Afficher les sauvegardes groupées
     echo "=== Sauvegardes disponibles ==="
     echo ""
     
     local index=1
-    declare -a backup_files
+    local temp_selected_file=$(mktemp)
+    local temp_sorted_timestamps=$(mktemp)
     
-    if [ -n "${superset_backups}" ]; then
-        echo "Base '${POSTGRES_DB}':"
-        local temp_file
-        temp_file=$(mktemp)
-        echo "${superset_backups}" | tr ' ' '\n' > "${temp_file}"
-        while IFS= read -r file; do
-            if [ -f "${file}" ]; then
-                local filename=$(basename "${file}")
-                local size=$(du -h "${file}" | cut -f1)
-                local date=$(stat -c %y "${file}" 2>/dev/null || stat -f "%Sm" "${file}" 2>/dev/null || echo "Date inconnue")
-                echo "  [$index] ${filename} (${size}, ${date})"
-                backup_files+=("${file}")
-                ((index++))
-            fi
-        done < "${temp_file}"
-        rm -f "${temp_file}"
-        echo ""
-    fi
+    # Trier les timestamps (plus récents en premier) dans un fichier
+    sort -r "${temp_timestamps_file}" > "${temp_sorted_timestamps}"
     
-    if [ -n "${user_data_backups}" ]; then
-        echo "Base '${POSTGRES_USERDATA_DB}':"
-        local temp_file
-        temp_file=$(mktemp)
-        echo "${user_data_backups}" | tr ' ' '\n' > "${temp_file}"
-        while IFS= read -r file; do
-            if [ -f "${file}" ]; then
-                local filename=$(basename "${file}")
-                local size=$(du -h "${file}" | cut -f1)
-                local date=$(stat -c %y "${file}" 2>/dev/null || stat -f "%Sm" "${file}" 2>/dev/null || echo "Date inconnue")
-                echo "  [$index] ${filename} (${size}, ${date})"
-                backup_files+=("${file}")
-                ((index++))
+    # Lire le fichier trié (pas de pipe pour éviter les problèmes de scope)
+    while IFS= read -r timestamp; do
+        local group_line=$(grep "^${timestamp}:" "${temp_group_file}" | cut -d: -f2-)
+        local files="${group_line}"
+        local superset_file=""
+        local user_data_file=""
+        local superset_size=""
+        local user_data_size=""
+        local date_str=""
+        
+        # Séparer les fichiers par base
+        for file in ${files}; do
+            local filename=$(basename "${file}")
+            if [[ "${filename}" == *"${POSTGRES_DB}"* ]]; then
+                superset_file="${file}"
+                superset_size=$(du -h "${file}" | cut -f1)
+                date_str=$(stat -c %y "${file}" 2>/dev/null || stat -f "%Sm" "${file}" 2>/dev/null || echo "Date inconnue")
+            elif [[ "${filename}" == *"${POSTGRES_USERDATA_DB}"* ]]; then
+                user_data_file="${file}"
+                user_data_size=$(du -h "${file}" | cut -f1)
+                if [ -z "${date_str}" ]; then
+                    date_str=$(stat -c %y "${file}" 2>/dev/null || stat -f "%Sm" "${file}" 2>/dev/null || echo "Date inconnue")
+                fi
             fi
-        done < "${temp_file}"
-        rm -f "${temp_file}"
-        echo ""
-    fi
+        done
+        
+        # Afficher la sauvegarde groupée
+        echo "[$index] Sauvegarde du ${date_str}"
+        if [ -n "${superset_file}" ]; then
+            echo "     - ${POSTGRES_DB}: $(basename "${superset_file}") (${superset_size})"
+        fi
+        if [ -n "${user_data_file}" ]; then
+            echo "     - ${POSTGRES_USERDATA_DB}: $(basename "${user_data_file}") (${user_data_size})"
+        fi
+        
+        # Stocker les fichiers pour ce groupe
+        echo "${superset_file}|${user_data_file}|${timestamp}" >> "${temp_selected_file}"
+        index=$((index + 1))
+    done < "${temp_sorted_timestamps}"
+    
+    local total_backups=$((index - 1))
+    rm -f "${temp_sorted_timestamps}"
+    
+    echo ""
     
     # Demander à l'utilisateur de choisir
+    echo ""
     echo "Quelle sauvegarde souhaitez-vous restaurer ?"
     read -p "Entrez le numéro de la sauvegarde: " choice
     
-    if ! [[ "${choice}" =~ ^[0-9]+$ ]] || [ "${choice}" -lt 1 ] || [ "${choice}" -gt ${#backup_files[@]} ]; then
+    if ! [[ "${choice}" =~ ^[0-9]+$ ]] || [ "${choice}" -lt 1 ] || [ "${choice}" -gt "${total_backups}" ]; then
         error "Choix invalide"
+        rm -f "${temp_group_file}" "${temp_timestamps_file}" "${temp_selected_file}"
         exit 1
     fi
     
-    local selected_backup="${backup_files[$((choice-1))]}"
-    local selected_filename=$(basename "${selected_backup}")
+    local selected_group=$(sed -n "${choice}p" "${temp_selected_file}")
+    local superset_file=$(echo "${selected_group}" | cut -d'|' -f1)
+    local user_data_file=$(echo "${selected_group}" | cut -d'|' -f2)
     
-    # Déterminer quelle base restaurer selon le nom du fichier
-    local db_to_restore
-    local other_db
-    local other_backup=""
+    # Nettoyer les fichiers temporaires
+    rm -f "${temp_group_file}" "${temp_timestamps_file}" "${temp_selected_file}" 2>/dev/null || true
     
-    if [[ "${selected_filename}" == *"${POSTGRES_DB}"* ]]; then
-        db_to_restore="${POSTGRES_DB}"
-        other_db="${POSTGRES_USERDATA_DB}"
-    elif [[ "${selected_filename}" == *"${POSTGRES_USERDATA_DB}"* ]]; then
-        db_to_restore="${POSTGRES_USERDATA_DB}"
-        other_db="${POSTGRES_DB}"
-    else
-        error "Impossible de déterminer la base de données à restaurer depuis le nom du fichier"
+    # Déterminer ce qui doit être restauré
+    local restore_superset=false
+    local restore_user_data=false
+    
+    if [ -n "${superset_file}" ] && [ "${superset_file}" != "" ]; then
+        restore_superset=true
+    fi
+    
+    if [ -n "${user_data_file}" ] && [ "${user_data_file}" != "" ]; then
+        restore_user_data=true
+    fi
+    
+    if [ "${restore_superset}" = false ] && [ "${restore_user_data}" = false ]; then
+        error "Aucune sauvegarde valide trouvée"
         exit 1
-    fi
-    
-    # Extraire la date/heure du nom de fichier pour trouver la sauvegarde correspondante de l'autre base
-    # Format attendu: superset-20251128-183700.sql.gz ou superset-20251128.sql.gz
-    local timestamp_pattern=""
-    if [[ "${selected_filename}" =~ -([0-9]{8}-[0-9]{6})\. ]]; then
-        # Format avec heure: 20251128-183700
-        timestamp_pattern="${BASH_REMATCH[1]}"
-    elif [[ "${selected_filename}" =~ -([0-9]{8})\. ]]; then
-        # Format sans heure: 20251128
-        timestamp_pattern="${BASH_REMATCH[1]}"
-    elif [[ "${selected_filename}" =~ -([0-9]{6})\. ]]; then
-        # Format semaine: 202548
-        timestamp_pattern="${BASH_REMATCH[1]}"
-    fi
-    
-    # Chercher la sauvegarde correspondante de l'autre base
-    if [ -n "${timestamp_pattern}" ]; then
-        local other_backup_candidate=$(find "${BACKUP_DIR}" -type f \( -name "${other_db}-*${timestamp_pattern}*.sql.gz" -o -name "${other_db}-*${timestamp_pattern}*.sql" \) 2>/dev/null | head -1)
-        if [ -n "${other_backup_candidate}" ] && [ -f "${other_backup_candidate}" ]; then
-            other_backup="${other_backup_candidate}"
-        fi
     fi
     
     # Afficher les informations de restauration
     echo ""
     info "Restauration planifiée:"
-    echo "  - Base '${db_to_restore}' depuis: $(basename "${selected_backup}")"
-    if [ -n "${other_backup}" ]; then
-        echo "  - Base '${other_db}' depuis: $(basename "${other_backup}")"
-        echo ""
-        warning "ATTENTION: Cette opération va écraser les deux bases de données!"
-        read -p "Voulez-vous restaurer les deux bases ? (oui/non): " restore_both
-        
-        if [ "${restore_both}" = "oui" ] || [ "${restore_both}" = "OUI" ] || [ "${restore_both}" = "o" ] || [ "${restore_both}" = "O" ]; then
-            # Restaurer les deux bases
-            restore_database "${db_to_restore}" "${selected_backup}"
-            restore_database "${other_db}" "${other_backup}"
-        else
-            # Restaurer uniquement la base sélectionnée
-            warning "ATTENTION: Cette opération va écraser la base de données '${db_to_restore}'!"
-            read -p "Êtes-vous sûr de vouloir continuer ? (oui/non): " confirm
-            
-            if [ "${confirm}" != "oui" ] && [ "${confirm}" != "OUI" ] && [ "${confirm}" != "o" ] && [ "${confirm}" != "O" ]; then
-                info "Restauration annulée"
-                exit 0
-            fi
-            
-            restore_database "${db_to_restore}" "${selected_backup}"
-        fi
-    else
-        # Pas de sauvegarde correspondante pour l'autre base
-        warning "ATTENTION: Cette opération va écraser la base de données '${db_to_restore}'!"
-        read -p "Êtes-vous sûr de vouloir continuer ? (oui/non): " confirm
-        
-        if [ "${confirm}" != "oui" ] && [ "${confirm}" != "OUI" ] && [ "${confirm}" != "o" ] && [ "${confirm}" != "O" ]; then
-            info "Restauration annulée"
-            exit 0
-        fi
-        
-        restore_database "${db_to_restore}" "${selected_backup}"
+    if [ "${restore_superset}" = true ]; then
+        echo "  - Base '${POSTGRES_DB}' depuis: $(basename "${superset_file}")"
+    fi
+    if [ "${restore_user_data}" = true ]; then
+        echo "  - Base '${POSTGRES_USERDATA_DB}' depuis: $(basename "${user_data_file}")"
+    fi
+    
+    echo ""
+    warning "ATTENTION: Cette opération va écraser les bases de données sélectionnées!"
+    read -p "Êtes-vous sûr de vouloir continuer ? (oui/non): " confirm
+    
+    if [ "${confirm}" != "oui" ] && [ "${confirm}" != "OUI" ] && [ "${confirm}" != "o" ] && [ "${confirm}" != "O" ]; then
+        info "Restauration annulée"
+        exit 0
+    fi
+    
+    # Effectuer les restaurations
+    if [ "${restore_superset}" = true ]; then
+        restore_database "${POSTGRES_DB}" "${superset_file}"
+    fi
+    
+    if [ "${restore_user_data}" = true ]; then
+        restore_database "${POSTGRES_USERDATA_DB}" "${user_data_file}"
     fi
     
     # Redémarrer Superset si nécessaire
