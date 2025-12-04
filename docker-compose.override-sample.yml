@@ -6,5 +6,6 @@ services:
 
   database:
     restart: no
+    platform: linux/amd64 # Pour compatibilité si nécessaire
     ports:
       - 5432:5432
