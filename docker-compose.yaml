@@ -33,6 +33,7 @@ services:
       SUPERSET_FAVICONS: ${SUPERSET_FAVICONS:-}
       SUPERSET_BABEL_DEFAULT_LOCALE: ${SUPERSET_BABEL_DEFAULT_LOCALE:-fr}
       SUPERSET_CONFIG_PATH: /app/superset_config.py
+      MAPBOX_API_KEY: ${MAPBOX_API_KEY:-}
       # Matplotlib configuration
       MPLCONFIGDIR: /tmp/matplotlib-config
       # Proxy configuration for https-portal

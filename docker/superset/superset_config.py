@@ -86,13 +86,28 @@ TALISMAN_ENABLED = True
 TALISMAN_CONFIG = {
     "content_security_policy": {
         "default-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        "img-src": ["'self'", "data:", "https:"],
+        "img-src": ["'self'", "data:", "https:", "https://*.tile.openstreetmap.org"],
         "worker-src": ["'self'", "blob:"],
-        "connect-src": ["'self'"],
+        "connect-src": [
+            "'self'",
+            "https://*.tile.openstreetmap.org",
+            "https://a.tile.openstreetmap.org",
+            "https://b.tile.openstreetmap.org",
+            "https://c.tile.openstreetmap.org",
+            "https://api.mapbox.com",
+            "https://*.mapbox.com"
+        ],
         "frame-ancestors": ["'none'"],
     },
     "force_https": False,  # Let https-portal handle HTTPS
 }
+
+# Mapbox configuration
+MAPBOX_API_KEY = os.environ.get("MAPBOX_API_KEY", None)
+# OpenStreetMap configuration (prévision v6.0.0)
+DECKGL_BASE_MAP = [
+    ["https://tile.openstreetmap.org/{z}/{x}/{y}.png", "OpenStreetMap"]
+]
 
 # Localization
 BABEL_DEFAULT_LOCALE = os.environ.get("SUPERSET_BABEL_DEFAULT_LOCALE", "fr")
