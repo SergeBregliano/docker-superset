@@ -121,6 +121,7 @@ BABEL_DEFAULT_LOCALE = os.environ.get("SUPERSET_BABEL_DEFAULT_LOCALE", "fr")
 FEATURE_FLAGS = {
     "ENABLE_REACT_TRANSLATIONS": True,
     "ENABLE_TEMPLATE_PROCESSING": True,
+    "ENABLE_JAVASCRIPT_CONTROLS": True,
     # Force French locale for better translation coverage
     "LOCALIZATION": True,
 }
