@@ -21,10 +21,12 @@ RUN /app/.venv/bin/python -m ensurepip --upgrade && \
         psycopg2-binary \
         redis \
         prophet \
-        plotly && \
+        plotly \
+        superset-chat && \
     /app/.venv/bin/python -c "import psycopg2; print('psycopg2 installed successfully')" && \
     /app/.venv/bin/python -c "import redis; print('redis installed successfully')" && \
     /app/.venv/bin/python -c "import prophet; print('prophet installed successfully')" && \
-    /app/.venv/bin/python -c "import plotly; print('plotly installed successfully')"
+    /app/.venv/bin/python -c "import plotly; print('plotly installed successfully')" && \
+    /app/.venv/bin/python -c "import superset_chat; print('superset-chat installed successfully')"
 
 USER superset
