@@ -92,7 +92,7 @@ appData/superset/translations/
     └── LC_MESSAGES/
         └── messages.json
         └── messages.mo
-				└── messages.po
+        └── messages.po
 ```
 
 **Note :** Pour modifier les fichiers de traduction, ne pas hésiter à utiliser [Poedit](https://poedit.net/).
@@ -121,7 +121,7 @@ Vous pouvez configurer Superset pour rediriger automatiquement certains utilisat
 ```bash
 # Redirections par utilisateur ou par rôle
 # Format JSON: {"username": "/superset/dashboard/ID/", "role_name": "/superset/dashboard/ID/"}
-SUPERSET_USER_DASHBOARD_REDIRECTS={"admin": "/superset/dashboard/1/", "utilisateur1": "/superset/dashboard/5/", "Gamma": "/superset/dashboard/10/"}
+SUPERSET_USER_DASHBOARD_REDIRECTS={"admin": "/superset/dashboard/1/", "user1": "/superset/dashboard/5/", "Gamma": "/superset/dashboard/10/"}
 
 # Dashboard par défaut si aucune correspondance n'est trouvée
 SUPERSET_DEFAULT_HOME_PAGE=/superset/welcome/
@@ -132,22 +132,43 @@ SUPERSET_DEFAULT_HOME_PAGE=/superset/welcome/
 - **Rediriger un utilisateur spécifique :**
   
   ```bash
-  SUPERSET_USER_DASHBOARD_REDIRECTS={"visitflux": "/superset/dashboard/3/"}
+  SUPERSET_USER_DASHBOARD_REDIRECTS={"user1": "/superset/dashboard/3/"}
+  ```
+  
+- **Rediriger avec panneau de filtres replié :**
+  
+  ```bash
+  SUPERSET_USER_DASHBOARD_REDIRECTS={"user1": "/superset/dashboard/3/?expand_filters=0"}
+  ```
+  
+- **Rediriger avec panneau de filtres masqué :**
+  
+  ```bash
+  SUPERSET_USER_DASHBOARD_REDIRECTS={"user1": "/superset/dashboard/3/?show_filters=0"}
   ```
   
 - **Rediriger tous les utilisateurs d'un rôle :**
+  
   ```bash
   SUPERSET_USER_DASHBOARD_REDIRECTS={"Gamma": "/superset/dashboard/10/"}
   ```
-
+  
 - **Combiner utilisateurs et rôles :**
   ```bash
   SUPERSET_USER_DASHBOARD_REDIRECTS={"admin": "/superset/dashboard/1/", "Gamma": "/superset/dashboard/10/"}
   ```
 
 **Priorité :**
+
 - Les redirections par utilisateur ont la priorité sur les redirections par rôle
 - Si aucune correspondance n'est trouvée, l'utilisateur est redirigé vers `SUPERSET_DEFAULT_HOME_PAGE`
+
+**Paramètres de filtres disponibles :**
+
+- `expand_filters=0` : Panneau de filtres replié
+- `expand_filters=1` : Panneau de filtres déplié
+- `show_filters=0` : Panneau de filtres masqué
+- `show_filters=1` : Panneau de filtres affiché
 
 ### Réseaux Docker
 

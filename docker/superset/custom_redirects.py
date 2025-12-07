@@ -1,6 +1,9 @@
 """
 Module de redirection personnalisée pour Superset.
 Redirige les utilisateurs vers des dashboards spécifiques selon leur nom d'utilisateur ou leur rôle.
+Les URLs peuvent inclure des paramètres de requête pour contrôler le panneau de filtres :
+- ?expand_filters=0 (replié) ou ?expand_filters=1 (déplié)
+- ?show_filters=0 (masqué) ou ?show_filters=1 (affiché)
 """
 import os
 import json
