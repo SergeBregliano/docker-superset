@@ -29,4 +29,9 @@ RUN /app/.venv/bin/python -m ensurepip --upgrade && \
     /app/.venv/bin/python -c "import plotly; print('plotly installed successfully')" && \
     /app/.venv/bin/python -c "import superset_chat; print('superset-chat installed successfully')"
 
+# Patch MockChatModel to add bind_tools method (required by LangGraph)
+COPY docker/superset/patch_mock_chat_model.py /tmp/patch_mock_chat_model.py
+RUN /app/.venv/bin/python /tmp/patch_mock_chat_model.py && \
+    rm /tmp/patch_mock_chat_model.py
+
 USER superset
