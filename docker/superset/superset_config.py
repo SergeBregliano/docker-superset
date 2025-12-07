@@ -136,3 +136,24 @@ BABEL_CONFIG = {
 ROW_LIMIT = 50000
 VIZ_ROW_LIMIT = 10000
 SUPERSET_WEBSERVER_TIMEOUT = 60
+
+# Redirection personnalisée par utilisateur/rôle
+try:
+    import sys
+    import importlib.util
+    
+    custom_redirects_path = "/app/custom_redirects.py"
+    
+    if os.path.exists(custom_redirects_path):
+        spec = importlib.util.spec_from_file_location("custom_redirects", custom_redirects_path)
+        custom_redirects_module = importlib.util.module_from_spec(spec)
+        sys.modules["custom_redirects"] = custom_redirects_module
+        spec.loader.exec_module(custom_redirects_module)
+        
+        # Créer et activer le mutator
+        FLASK_APP_MUTATOR = custom_redirects_module.create_custom_index_view_mutator()
+    else:
+        FLASK_APP_MUTATOR = None
+except Exception as e:
+    print(f"Warning: Could not load custom redirects module: {e}")
+    FLASK_APP_MUTATOR = None

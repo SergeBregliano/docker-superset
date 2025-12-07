@@ -109,6 +109,45 @@ appData/superset/translations/
 | `REDIS_PASSWORD` | Mot de passe Redis | - |
 | `VIRTUAL_HOST` | Domaine pour https-portal | `localhost` |
 | `SUPERSET_ADMIN_PASSWORD` | Mot de passe admin | - |
+| `SUPERSET_USER_DASHBOARD_REDIRECTS` | Redirections personnalisées par utilisateur/rôle (format JSON) | `{}` |
+| `SUPERSET_DEFAULT_HOME_PAGE` | Page d'accueil par défaut après connexion | `/superset/welcome/` |
+
+### Redirection personnalisée vers les dashboards
+
+Vous pouvez configurer Superset pour rediriger automatiquement certains utilisateurs ou rôles vers des dashboards spécifiques après leur connexion.
+
+**Configuration dans `.env` :**
+
+```bash
+# Redirections par utilisateur ou par rôle
+# Format JSON: {"username": "/superset/dashboard/ID/", "role_name": "/superset/dashboard/ID/"}
+SUPERSET_USER_DASHBOARD_REDIRECTS={"admin": "/superset/dashboard/1/", "utilisateur1": "/superset/dashboard/5/", "Gamma": "/superset/dashboard/10/"}
+
+# Dashboard par défaut si aucune correspondance n'est trouvée
+SUPERSET_DEFAULT_HOME_PAGE=/superset/welcome/
+```
+
+**Exemples :**
+
+- **Rediriger un utilisateur spécifique :**
+  
+  ```bash
+  SUPERSET_USER_DASHBOARD_REDIRECTS={"visitflux": "/superset/dashboard/3/"}
+  ```
+  
+- **Rediriger tous les utilisateurs d'un rôle :**
+  ```bash
+  SUPERSET_USER_DASHBOARD_REDIRECTS={"Gamma": "/superset/dashboard/10/"}
+  ```
+
+- **Combiner utilisateurs et rôles :**
+  ```bash
+  SUPERSET_USER_DASHBOARD_REDIRECTS={"admin": "/superset/dashboard/1/", "Gamma": "/superset/dashboard/10/"}
+  ```
+
+**Priorité :**
+- Les redirections par utilisateur ont la priorité sur les redirections par rôle
+- Si aucune correspondance n'est trouvée, l'utilisateur est redirigé vers `SUPERSET_DEFAULT_HOME_PAGE`
 
 ### Réseaux Docker
 

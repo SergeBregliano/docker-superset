@@ -43,6 +43,8 @@ services:
       SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME:-admin}
       SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL:-admin@localhost}
       SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
+      # Redirection personnalisée vers les dashboards
+      SUPERSET_USER_DASHBOARD_REDIRECTS: ${SUPERSET_USER_DASHBOARD_REDIRECTS:-{}}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
       interval: 30s
@@ -51,6 +53,7 @@ services:
       start_period: 60s
     volumes:
       - ./docker/superset/superset_config.py:/app/superset_config.py:ro
+      - ./docker/superset/custom_redirects.py:/app/custom_redirects.py:ro
       - ${DATA_PATH:-./appData}/superset/assets:/app/superset/static/assets/custom:ro
       - ${DATA_PATH:-./appData}/superset/translations/fr:/app/superset/translations/fr:ro
     networks:
