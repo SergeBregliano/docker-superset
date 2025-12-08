@@ -12,7 +12,26 @@ set -e
 
 # Charger les variables d'environnement
 if [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | xargs)
+    # Lire le fichier .env ligne par ligne et exporter chaque variable
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Ignorer les lignes vides et les commentaires
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${line// }" ]] && continue
+        
+        # Exporter la variable si elle est au format KEY=VALUE
+        if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            key="${BASH_REMATCH[1]}"
+            value="${BASH_REMATCH[2]}"
+            # Supprimer les espaces en début/fin de valeur
+            value="${value#"${value%%[![:space:]]*}"}"
+            value="${value%"${value##*[![:space:]]}"}"
+            # Supprimer les guillemets entourants si présents
+            if [[ "$value" =~ ^\".*\"$ ]] || [[ "$value" =~ ^\'.*\'$ ]]; then
+                value="${value:1:-1}"
+            fi
+            export "$key=$value"
+        fi
+    done < .env
 fi
 
 CONTAINER_NAME=${MAIN_CONTAINER_NAME:-superset}
