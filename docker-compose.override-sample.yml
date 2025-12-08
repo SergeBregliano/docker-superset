@@ -24,3 +24,19 @@ services:
       - superset
     depends_on:
       - database
+  postgres-proxy:
+    image: alpine/socat:latest
+    restart: unless-stopped
+    container_name: ${MAIN_CONTAINER_NAME:-superset}_postgres_proxy
+    command: tcp-listen:5432,fork,reuseaddr tcp-connect:database:5432
+    networks:
+      - superset
+      - tailscale
+    depends_on:
+      - database
+      - tailscale
+
+networks:
+  tailscale:
+    name: ${BACKEND_NETWORK}_tailscale
+    driver: bridge
