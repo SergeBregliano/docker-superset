@@ -9,3 +9,18 @@ services:
     platform: linux/amd64 # Pour compatibilité si nécessaire
     ports:
       - 5432:5432
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    restart: unless-stopped
+    container_name: ${MAIN_CONTAINER_NAME:-superset}_tailscale
+    hostname: ${MAIN_CONTAINER_NAME:-superset-postgres}
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+    volumes:
+      - ${DATA_PATH:-./appData}/tailscale:/var/lib/tailscale
+    networks:
+      - superset
+    depends_on:
+      - database

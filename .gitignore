@@ -1,6 +1,7 @@
 #appData
 appData/database/
 appData/superset/assets/
+appData/tailscale/
 
 # Sauvegardes
 backups/
