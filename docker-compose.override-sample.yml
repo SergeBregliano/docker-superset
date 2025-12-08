@@ -24,6 +24,7 @@ services:
       - superset
     depends_on:
       - database
+
   postgres-proxy:
     image: alpine/socat:latest
     restart: unless-stopped
