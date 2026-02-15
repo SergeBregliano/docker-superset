@@ -182,47 +182,7 @@ docker network create gateway
 docker network create myapp
 ```
 
-## Graphiques GeoJSON
 
-- Pré-requis : disposer de la librairie [GDAL](https://gdal.org) pour pouvoir utiliser ogr2ogr
-
-- Vérifier la structure du fichier GeoJSON en le chargeant sur le site https://geojson.io/ ou https://mapshaper.org/
-
-- Charger le fichier GeoJSON dans une table de la base de données
-
-  ```shell
-  ogr2ogr -f "PostgreSQL" \
-    PG:"host=localhost dbname=votre_db user=votre_user password=votre_password" \
-    votre_fichier.geojson \
-    -nln nom_de_la_table \
-    -overwrite
-  ```
-
-- Ensuite, deux méthodes permettent d'utiliser les fichiers GeoJSON afin d'établir des graphiques deck.gl geojson :
-
-  - Requête SQL personnalisée pour le champ GeoJson Column
-
-    ```sql
-    json_build_object(
-        'type', 'Feature',
-        'geometry', ST_AsGeoJSON(ST_Transform(wkb_geometry, 4326))::json,
-          'properties', json_build_object()
-    )::text
-    ```
-
-  - Requête SQL pour un Dataset virtuel
-
-    ```sql
-    SELECT *, 
-        json_build_object(
-            'type', 'Feature',
-            'geometry', ST_AsGeoJSON(ST_Transform((ST_Dump(wkb_geometry)).geom::geometry, 4326))::json,
-            'properties', json_build_object()
-        )::text AS geojson
-    FROM nom_de_la_table;
-    ```
-
-    
 
 ## Structure des volumes
 
@@ -294,6 +254,46 @@ Superset fournit des exemples de données (jeux de données et dashboards) pour 
    - Vous pourrez explorer les dashboards et jeux de données d'exemple
 
 **Note :** Le script `load-examples.sh` vérifie automatiquement que Superset est prêt et que la base `user_data` existe avant de charger les exemples.
+
+## Graphiques GeoJSON
+
+- Pré-requis : disposer de la librairie [GDAL](https://gdal.org) pour pouvoir utiliser ogr2ogr
+
+- Vérifier la structure du fichier GeoJSON en le chargeant sur le site https://geojson.io/ ou https://mapshaper.org/
+
+- Charger le fichier GeoJSON dans une table de la base de données
+
+  ```shell
+  ogr2ogr -f "PostgreSQL" \
+    PG:"host=localhost dbname=votre_db user=votre_user password=votre_password" \
+    votre_fichier.geojson \
+    -nln nom_de_la_table \
+    -overwrite
+  ```
+
+- Ensuite, deux méthodes permettent d'utiliser les fichiers GeoJSON afin d'établir des graphiques deck.gl geojson :
+
+  - Requête SQL personnalisée pour le champ GeoJson Column
+
+    ```sql
+    json_build_object(
+        'type', 'Feature',
+        'geometry', ST_AsGeoJSON(ST_Transform(wkb_geometry, 4326))::json,
+          'properties', json_build_object()
+    )::text
+    ```
+
+  - Requête SQL pour un Dataset virtuel
+
+    ```sql
+    SELECT *, 
+        json_build_object(
+            'type', 'Feature',
+            'geometry', ST_AsGeoJSON(ST_Transform((ST_Dump(wkb_geometry)).geom::geometry, 4326))::json,
+            'properties', json_build_object()
+        )::text AS geojson
+    FROM nom_de_la_table;
+    ```
 
 ## Sauvegarde et restauration
 
