@@ -71,6 +71,33 @@ Identifiants par défaut (modifiables dans `.env`) :
 - Username : `admin`
 - Password : Celui défini dans `SUPERSET_ADMIN_PASSWORD`
 
+## Mise à jour (migration de version)
+
+Lors d’un passage à une nouvelle version majeure de Superset (par ex. 5.x → 6.x) :
+
+1. **Sauvegarder la base métadonnées**  
+   Faire un backup complet PostgreSQL (base `superset` et éventuellement `user_data`) avant toute mise à jour. Utiliser par ex. le script `./backup-restore.sh` ou `pg_dump`.
+
+2. **Passer à la nouvelle version**  
+   Dans `.env`, définir `SUPERSET_VERSION=6.0.0` (ou la version cible). Optionnel : `BUILD_TRANSLATIONS=true` pour inclure les traductions dans l’image ; `INCLUDE_CHROMIUM=true` uniquement si vous utilisez Alertes & Rapports avec captures d’écran.
+
+3. **Reconstruire et redémarrer**  
+   ```bash
+   docker compose down
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+
+4. **Migrations et initialisation**  
+   Une fois le conteneur prêt, exécuter (ou relancer le script d’init) :
+   ```bash
+   ./setup.sh
+   ```
+   Ce script lance `superset db upgrade`, `superset init` et la création de l’admin si besoin. En 6.0+, `FAB_ADD_SECURITY_API = True` est requis pour la gestion des rôles dans l’UI (déjà présent dans `superset_config.py`).
+
+5. **Vérifications**  
+   Tester la page d’accueil, les redirections personnalisées par utilisateur/rôle, et l’affichage des dashboards / graphiques ECharts.
+
 ## Traductions
 
 Superset est configuré pour utiliser le français par défaut (`BABEL_DEFAULT_LOCALE=fr`).
@@ -97,13 +124,19 @@ appData/superset/translations/
 
 **Note :** Pour modifier les fichiers de traduction, ne pas hésiter à utiliser [Poedit](https://poedit.net/).
 
+## Interface utilisateur en français
+
+Pour qu'un utilisateur puisse disposer d'une interface en français, il faut que son rôle possède le droit ``can language pack Superset``.
+
+
+
 ## Configuration
 
 ### Variables d'environnement principales
 
 | Variable | Description | Défaut |
 |----------|-------------|--------|
-| `SUPERSET_VERSION` | Version de Superset | `5.0.0` |
+| `SUPERSET_VERSION` | Version de Superset | `6.0.0` |
 | `SUPERSET_SECRET_KEY` | Clé secrète (OBLIGATOIRE) | - |
 | `POSTGRES_PASSWORD` | Mot de passe PostgreSQL | - |
 | `REDIS_PASSWORD` | Mot de passe Redis | - |
@@ -111,6 +144,8 @@ appData/superset/translations/
 | `SUPERSET_ADMIN_PASSWORD` | Mot de passe admin | - |
 | `SUPERSET_USER_DASHBOARD_REDIRECTS` | Redirections personnalisées par utilisateur/rôle (format JSON) | `{}` |
 | `SUPERSET_DEFAULT_HOME_PAGE` | Page d'accueil par défaut après connexion | `/superset/welcome/` |
+| `BUILD_TRANSLATIONS` | Inclure les traductions dans l'image (recommandé pour le français) | `true` |
+| `INCLUDE_CHROMIUM` | Inclure Chromium pour Alertes & Rapports (screenshots) | `false` |
 
 ### Redirection personnalisée vers les dashboards
 

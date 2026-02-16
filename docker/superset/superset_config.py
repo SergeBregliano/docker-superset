@@ -82,6 +82,8 @@ PROXY_FIX_CONFIG = {
 
 # Production settings
 PREVENT_UNSAFE_DB_CONNECTIONS = True
+# Required in Superset 6.0+ for List Roles UI (frontend); run superset init after upgrade
+#FAB_ADD_SECURITY_API = True
 TALISMAN_ENABLED = True
 TALISMAN_CONFIG = {
     "content_security_policy": {
@@ -112,10 +114,10 @@ DECKGL_BASE_MAP = [
 # Localization
 BABEL_DEFAULT_LOCALE = os.environ.get("SUPERSET_BABEL_DEFAULT_LOCALE", "fr")
 
-# LANGUAGES = {
-#     "en": {"flag": "us", "name": "English"},
-#     "fr": {"flag": "fr", "name": "Français"},
-# }
+LANGUAGES = {
+    # "en": {"flag": "us", "name": "English"},
+    "fr": {"flag": "fr", "name": "Français"},
+}
 
 # Feature flags for translations
 FEATURE_FLAGS = {

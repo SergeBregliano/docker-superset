@@ -5,7 +5,9 @@ services:
       context: .
       dockerfile: docker/superset/Dockerfile
       args:
-        SUPERSET_VERSION: ${SUPERSET_VERSION:-5.0.0}
+        SUPERSET_VERSION: ${SUPERSET_VERSION:-6.0.0}
+        BUILD_TRANSLATIONS: ${BUILD_TRANSLATIONS:-true}
+        INCLUDE_CHROMIUM: ${INCLUDE_CHROMIUM:-false}
     restart: unless-stopped
     depends_on:
       database:
